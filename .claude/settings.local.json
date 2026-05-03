@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter *)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -LO https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_v2_stable.tar.xz)",
+      "Bash(tar xf *)",
+      "Bash(brew list *)",
+      "Bash(brew install *)",
+      "Bash(export PATH=\"/opt/homebrew/bin:$PATH\")"
+    ]
+  }
+}
