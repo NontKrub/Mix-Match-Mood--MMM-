@@ -1,19 +1,37 @@
-class Outfit {
-  final String id;
-  final List<String> itemIds;
-  final String mood;
-  final String occasion;
-  final DateTime selectedAt;
-  final bool liked;
-  final int rating;
+import 'package:hive/hive.dart';
+
+part 'outfit.g.dart';
+
+@HiveType(typeId: 1)
+class Outfit extends HiveObject {
+  @HiveField(0)
+  String id;
+
+  @HiveField(1)
+  List<String> itemIds;
+
+  @HiveField(2)
+  String? mood;
+
+  @HiveField(3)
+  String? occasion;
+
+  @HiveField(4)
+  DateTime? selectedAt;
+
+  @HiveField(5)
+  bool? liked;
+
+  @HiveField(6)
+  int? rating;
 
   Outfit({
     required this.id,
     required this.itemIds,
-    required this.mood,
-    required this.occasion,
-    required this.selectedAt,
-    this.liked = false,
-    this.rating = 0,
+    this.mood,
+    this.occasion,
+    this.selectedAt,
+    this.liked,
+    this.rating,
   });
 }

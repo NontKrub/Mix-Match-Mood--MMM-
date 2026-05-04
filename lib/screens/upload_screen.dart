@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mix_match_mood/core/services/hive_service.dart';
+import 'package:mix_match_mood/core/services/mlkit_service.dart';
+import 'package:mix_match_mood/core/models/clothes.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -11,8 +14,17 @@ class UploadScreen extends StatefulWidget {
 
 class _UploadScreenState extends State<UploadScreen> {
   final ImagePicker _picker = ImagePicker();
+  final HiveService _hiveService = HiveService();
+  final MLKitService _mlKitService = MLKitService();
   XFile? _selectedImage;
   String? _cropResult;
+  String? _selectedType;
+  List<String> _selectedColors = [];
+  List<String> _selectedStyles = [];
+
+  final List<String> _types = ['top', 'bottom', 'pants', 'hat', 'jewelry', 'accessory'];
+  final List<String> _defaultColors = ['white', 'black', 'gray', 'blue', 'red', 'green', 'yellow'];
+  final List<String> _defaultStyles = ['casual', 'formal', 'classic', 'modern', 'boho'];
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +65,10 @@ class _UploadScreenState extends State<UploadScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
+            if (_selectedImage != null) ...[
+              const SizedBox(height: 16),
+              _buildSaveButton(),
+            ],
           ],
         ),
       ),
@@ -75,13 +91,15 @@ class _UploadScreenState extends State<UploadScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: AspectRatio(
-        aspectRatio: 1,
-        child: Image.file(File(_cropResult!), fit: BoxFit.cover),
-      ),
+                      aspectRatio: 1,
+                      child: Image.file(File(_cropResult!), fit: BoxFit.cover),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text('Preview', style: const TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
+                  if (_selectedType != null)
+                    Text('Type: $_selectedType', style: const TextStyle(fontSize: 12)),
                 ],
               ),
       ),
@@ -94,16 +112,25 @@ class _UploadScreenState extends State<UploadScreen> {
       children: [
         Text('Item Type', style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8E4DC),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'AI will detect clothing type automatically from the image.',
-            style: const TextStyle(fontSize: 12),
-          ),
+        Wrap(
+          spacing: 8,
+          children: _types.map((type) {
+            final isSelected = _selectedType == type;
+            return FilterChip(
+              label: Text(_typeLabel(type)),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() => _selectedType = type);
+                } else {
+                  setState(() => _selectedType = null);
+                }
+              },
+              backgroundColor: const Color(0xFFE8E4DC),
+              selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
+              labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -115,9 +142,27 @@ class _UploadScreenState extends State<UploadScreen> {
       children: [
         Text('Colors', style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        _selectedImage != null
-            ? const Center(child: Text('Colors will be extracted here...', style: TextStyle(fontSize: 12)))
-            : const SizedBox(),
+        if (_selectedImage != null)
+          Wrap(
+            spacing: 8,
+            children: _defaultColors.map((color) {
+              final isSelected = _selectedColors.contains(color);
+              return FilterChip(
+                label: Text(color.toUpperCase()),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState((s) => s!._selectedColors.add(color));
+                  } else {
+                    setState((s) => s!._selectedColors.remove(color));
+                  }
+                },
+                backgroundColor: const Color(0xFFE8E4DC),
+                selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
+                labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+              );
+            }).toList(),
+          ),
       ],
     );
   }
@@ -128,10 +173,40 @@ class _UploadScreenState extends State<UploadScreen> {
       children: [
         Text('Style', style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        _selectedImage != null
-            ? const Center(child: Text('Style will be detected here...', style: TextStyle(fontSize: 12)))
-            : const SizedBox(),
+        if (_selectedImage != null)
+          Wrap(
+            spacing: 8,
+            children: _defaultStyles.map((style) {
+              final isSelected = _selectedStyles.contains(style);
+              return FilterChip(
+                label: Text(style),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState((s) => s!._selectedStyles.add(style));
+                  } else {
+                    setState((s) => s!._selectedStyles.remove(style));
+                  }
+                },
+                backgroundColor: const Color(0xFFE8E4DC),
+                selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
+                labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+              );
+            }).toList(),
+          ),
       ],
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return ElevatedButton.icon(
+      onPressed: _saveClothes,
+      icon: const Icon(Icons.save),
+      label: const Text('Save Clothes'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFC9A688),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+      ),
     );
   }
 
@@ -166,21 +241,67 @@ class _UploadScreenState extends State<UploadScreen> {
       _selectedImage = image;
       _cropResult = image.path;
     });
+  }
 
-    // Show crop screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CropperScreen(imagePath: _cropResult!),
-      ),
-    ).then((croppedPath) {
-      if (croppedPath != null) {
-        setState(() {
-          _cropResult = croppedPath;
-        });
-        // TODO: Implement image analysis with ML Kit
-      }
-    });
+  Future<void> _saveClothes() async {
+    if (_selectedType == null || _selectedColors.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one color')),
+      );
+      return;
+    }
+
+    // Perform ML Kit analysis for better accuracy
+    final analysis = await _mlKitService.analyzeClothing(_cropResult!);
+
+    // Update selections with ML Kit results
+    if (analysis['type'] != null) {
+      _selectedType = analysis['type'];
+    }
+    if (analysis['colors'] != null) {
+      _selectedColors.addAll(analysis['colors']);
+    }
+    if (analysis['styles'] != null) {
+      _selectedStyles.addAll(analysis['styles']);
+    }
+
+    // Remove duplicates
+    _selectedColors = _selectedColors.toSet().toList();
+    _selectedStyles = _selectedStyles.toSet().toList();
+
+    final clothes = Clothes(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: _selectedType ?? 'Item',
+      type: _selectedType ?? 'top',
+      colors: _selectedColors,
+      styles: _selectedStyles,
+      occasions: ['daily'],
+      imagePath: _cropResult,
+    );
+
+    await _hiveService.addClothes(clothes);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved: ${clothes.name} (${clothes.type}) - AI detected ${analysis['confidence'] * 100}% confidence'),
+          backgroundColor: const Color(0xFF8DB998),
+        ),
+      );
+      Navigator.pop(context);
+    }
+  }
+
+  String _typeLabel(String type) {
+    const labels = {
+      'top': 'Top',
+      'bottom': 'Bottom',
+      'pants': 'Pants',
+      'hat': 'Hat',
+      'jewelry': 'Jewelry',
+      'accessory': 'Accessory',
+    };
+    return labels[type] ?? type;
   }
 }
 
