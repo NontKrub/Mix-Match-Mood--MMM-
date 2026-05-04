@@ -15,6 +15,10 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
   final HiveService _hiveService = HiveService();
   List<Clothes> _clothes = [];
   Map<String, int> _gapAnalysis = {};
+  String? _selectedTopId;
+  String? _selectedBottomId;
+  List<Clothes> _matchingPieces = [];
+  List<String> _buySuggestions = [];
   bool _analyzing = true;
 
   @override
@@ -28,6 +32,7 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
     setState(() {
       _clothes = clothes;
       _performGapAnalysis();
+      _analyzeSelectedSet();
       _analyzing = false;
     });
   }
@@ -43,8 +48,9 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
     };
 
     for (final cloth in _clothes) {
-      if (types.containsKey(cloth.type)) {
-        types[cloth.type] = (types[cloth.type] ?? 0) + 1;
+      final normalizedType = cloth.type == 'pants' ? 'bottom' : cloth.type;
+      if (types.containsKey(normalizedType)) {
+        types[normalizedType] = (types[normalizedType] ?? 0) + 1;
       }
     }
 
@@ -57,15 +63,83 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
       'accessory': 5
     };
 
-    setState(() {
-      _gapAnalysis = {
-        'top': max(ideal['top']! - (types['top'] ?? 0), 0),
-        'bottom': max(ideal['bottom']! - (types['bottom'] ?? 0), 0),
-        'hat': max(ideal['hat']! - (types['hat'] ?? 0), 0),
-        'jewelry': max(ideal['jewelry']! - (types['jewelry'] ?? 0), 0),
-        'accessory': max(ideal['accessory']! - (types['accessory'] ?? 0), 0),
-      };
-    });
+    _gapAnalysis = {
+      'top': max(ideal['top']! - (types['top'] ?? 0), 0),
+      'bottom': max(ideal['bottom']! - (types['bottom'] ?? 0), 0),
+      'hat': max(ideal['hat']! - (types['hat'] ?? 0), 0),
+      'jewelry': max(ideal['jewelry']! - (types['jewelry'] ?? 0), 0),
+      'accessory': max(ideal['accessory']! - (types['accessory'] ?? 0), 0),
+    };
+  }
+
+  void _analyzeSelectedSet() {
+    final top = _selectedTop;
+    final bottom = _selectedBottom;
+    if (top == null || bottom == null) {
+      _matchingPieces = [];
+      _buySuggestions = [];
+      return;
+    }
+
+    final referenceColors = {...top.colors, ...bottom.colors};
+    final referenceStyles = {...top.styles, ...bottom.styles};
+    final referenceOccasions = {...top.occasions, ...bottom.occasions};
+    final complementTypes = {'accessory', 'jewelry', 'hat'};
+
+    final scored = _clothes
+        .where((item) => complementTypes.contains(item.type))
+        .map((item) {
+      final colorScore = item.colors.where(referenceColors.contains).length * 2;
+      final styleScore = item.styles.where(referenceStyles.contains).length;
+      final occasionScore =
+          item.occasions.where(referenceOccasions.contains).length;
+      return _ScoredPiece(item, colorScore + styleScore + occasionScore);
+    }).toList()
+      ..sort((a, b) => b.score.compareTo(a.score));
+
+    _matchingPieces = scored
+        .where((entry) => entry.score > 0)
+        .take(4)
+        .map((e) => e.item)
+        .toList();
+
+    _buySuggestions = _matchingPieces.isNotEmpty
+        ? []
+        : _buildBuySuggestions(
+            referenceColors: referenceColors,
+            referenceStyles: referenceStyles,
+          );
+  }
+
+  List<String> _buildBuySuggestions({
+    required Set<String> referenceColors,
+    required Set<String> referenceStyles,
+  }) {
+    final accentColor =
+        referenceColors.isNotEmpty ? referenceColors.first : 'neutral';
+    final style = referenceStyles.isNotEmpty ? referenceStyles.first : 'casual';
+    return [
+      'A $accentColor watch to add a polished finishing touch.',
+      'A $style-friendly bag that works with both pieces.',
+      'A lightweight scarf in a matching tone for layering.',
+    ];
+  }
+
+  List<Clothes> get _tops =>
+      _clothes.where((item) => item.type == 'top').toList();
+  List<Clothes> get _bottoms => _clothes
+      .where((item) => item.type == 'bottom' || item.type == 'pants')
+      .toList();
+
+  Clothes? get _selectedTop => _findById(_tops, _selectedTopId);
+  Clothes? get _selectedBottom => _findById(_bottoms, _selectedBottomId);
+
+  Clothes? _findById(List<Clothes> items, String? id) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (item.id == id) return item;
+    }
+    return null;
   }
 
   @override
@@ -121,6 +195,8 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
             else
               _buildNoGapsCard(),
             // Current Wardrobe Summary
+            const SizedBox(height: 24),
+            _buildSelectedSetAnalyzer(),
             const SizedBox(height: 24),
             _buildWardrobeSummary(),
             const SizedBox(height: 24),
@@ -288,6 +364,113 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
     );
   }
 
+  Widget _buildSelectedSetAnalyzer() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'What is missing from this set?',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Pick one top and one bottom, then MMM will suggest matching finishing pieces.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Select Top',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedTopId,
+              hint: const Text('Choose a top'),
+              items: _tops
+                  .map((item) =>
+                      DropdownMenuItem(value: item.id, child: Text(item.name)))
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedTopId = value;
+                  _analyzeSelectedSet();
+                });
+              },
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Select Bottom',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedBottomId,
+              hint: const Text('Choose a bottom'),
+              items: _bottoms
+                  .map((item) =>
+                      DropdownMenuItem(value: item.id, child: Text(item.name)))
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedBottomId = value;
+                  _analyzeSelectedSet();
+                });
+              },
+            ),
+            if (_tops.isEmpty || _bottoms.isEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Add at least one top and one bottom to use set analysis.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+            if (_selectedTop != null && _selectedBottom != null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Recommended matching pieces',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              if (_matchingPieces.isNotEmpty)
+                ..._matchingPieces.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(_getIcon(item.type), color: colors[item.type]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${item.name} • ${_getCategoryName(item.type)}',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_buySuggestions.isNotEmpty)
+                ..._buySuggestions.map(
+                  (suggestion) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• '),
+                        Expanded(child: Text(suggestion)),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSmartMatchSuggestions() {
     final tops = _clothes.where((item) => item.type == 'top').length;
     final bottoms = _clothes
@@ -363,4 +546,11 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
   String _getCategoryName(String key) => key.toUpperCase();
 
   IconData _getIcon(String category) => icons[category] ?? Icons.emoji_emotions;
+}
+
+class _ScoredPiece {
+  const _ScoredPiece(this.item, this.score);
+
+  final Clothes item;
+  final int score;
 }
