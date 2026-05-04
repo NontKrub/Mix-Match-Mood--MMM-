@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mix_match_mood/core/services/hive_service.dart';
+import 'package:mix_match_mood/core/services/stylist_service.dart';
 
 class MoodPickerScreen extends StatefulWidget {
   const MoodPickerScreen({super.key});
@@ -18,8 +19,11 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
     {'icon': '😴', 'name': 'Sleepy'},
   ];
 
+  final HiveService _hiveService = HiveService();
+  final StylistService _stylistService = StylistService();
   String? _selectedMood;
-  List<Map<String, dynamic>> _outfits = [];
+  bool _loading = false;
+  List<OutfitView> _outfits = [];
 
   @override
   void initState() {
@@ -28,13 +32,9 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
   }
 
   Future<void> _loadOutfits() async {
-    final hiveService = HiveService();
-    final outfits = hiveService.getOutfits();
+    final selectedMood = _selectedMood;
     setState(() {
-      _outfits = outfits.map((o) => {
-        'name': o.mood ?? 'General',
-        'itemIds': o.itemIds,
-      }).toList();
+      _outfits = _stylistService.getOutfitViews(mood: selectedMood);
     });
   }
 
@@ -58,7 +58,8 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    leading: Text(mood['icon']!, style: const TextStyle(fontSize: 32)),
+                    leading: Text(mood['icon']!,
+                        style: const TextStyle(fontSize: 32)),
                     title: Text(mood['name']!),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () => _selectMood(mood['name']!),
@@ -72,21 +73,52 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
             height: 300,
             decoration: BoxDecoration(
               color: const Color(0xFFE8E4DC),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             padding: const EdgeInsets.all(16),
             child: _selectedMood == null
-                ? Center(child: Text('Select a mood to see outfits', style: TextStyle(color: Colors.grey)))
-                : _buildOutfitsList(),
+                ? Center(
+                    child: Text(
+                      'Select a mood to see outfits',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                : _buildRecommendationPanel(),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildRecommendationPanel() {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _loading ? null : _generateMoodOutfit,
+            icon: const Icon(Icons.auto_awesome),
+            label: Text(_loading ? 'Generating...' : 'Generate Outfit'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC9A688),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Expanded(child: _buildOutfitsList()),
+      ],
+    );
+  }
+
   Widget _buildOutfitsList() {
     if (_outfits.isEmpty) {
-      return Center(child: Text('No outfits available for "$_selectedMood"', style: const TextStyle(fontSize: 16)));
+      return Center(
+        child: Text(
+          'No outfits available for "$_selectedMood"',
+          style: const TextStyle(fontSize: 16),
+        ),
+      );
     }
 
     return ListView.builder(
@@ -98,11 +130,26 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
           padding: const EdgeInsets.only(bottom: 12),
           child: Card(
             child: ListTile(
-              title: Text('Outfit $index + 1'),
-              subtitle: Text('${_outfits[index]['itemIds'].length} items'),
-              trailing: IconButton(
-                icon: const Icon(Icons.heart_broken),
-                onPressed: () => _likeOutfit(index),
+              title: Text('Outfit ${index + 1}'),
+              subtitle: Text(_outfits[index].itemSummary),
+              trailing: Wrap(
+                spacing: 4,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.thumb_up_alt_outlined),
+                    onPressed: () => _recordFeedback(
+                      _outfits[index].outfit.id,
+                      liked: true,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.thumb_down_alt_outlined),
+                    onPressed: () => _recordFeedback(
+                      _outfits[index].outfit.id,
+                      liked: false,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -118,13 +165,31 @@ class _MoodPickerScreenState extends State<MoodPickerScreen> {
     _loadOutfits();
   }
 
-  Future<void> _likeOutfit(int index) async {
-    final hiveService = HiveService();
-    final outfitId = 'outfit_${_outfits[index]['itemIds'].join('_')}';
-    await hiveService.likeOutfit(outfitId);
+  Future<void> _generateMoodOutfit() async {
+    if (_selectedMood == null) {
+      return;
+    }
+    setState(() => _loading = true);
+    await _stylistService.generateOutfit(
+      mood: _selectedMood,
+      occasion: 'daily',
+      save: true,
+    );
+    await _loadOutfits();
+    setState(() => _loading = false);
+  }
+
+  Future<void> _recordFeedback(String outfitId, {required bool liked}) async {
+    await _hiveService.recordOutfitFeedback(
+      outfitId: outfitId,
+      liked: liked,
+      mood: _selectedMood,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Outfit liked! ❤️')),
+        SnackBar(
+          content: Text(liked ? 'Saved your like! ❤️' : 'Feedback noted 👍'),
+        ),
       );
     }
   }

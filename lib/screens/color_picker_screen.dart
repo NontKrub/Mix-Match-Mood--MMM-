@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mix_match_mood/core/services/hive_service.dart';
+import 'package:mix_match_mood/core/services/stylist_service.dart';
 
 class ColorPickerScreen extends StatefulWidget {
   const ColorPickerScreen({super.key});
@@ -20,8 +20,21 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
     Color(0xFF8DB998),
   ];
 
-  List<Map<String, dynamic>> _outfits = [];
+  final StylistService _stylistService = StylistService();
+  List<OutfitView> _outfits = [];
   List<String> _activeFilters = [];
+  bool _loading = false;
+
+  static const Map<String, String> _hexToColorName = {
+    '000000': 'black',
+    'FFF9F0': 'white',
+    'C9A688': 'brown',
+    '8B5A2B': 'brown',
+    'E8D5B5': 'beige',
+    'FAF9F6': 'white',
+    '2D2A26': 'black',
+    '8DB998': 'green',
+  };
 
   @override
   void initState() {
@@ -30,13 +43,10 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
   }
 
   Future<void> _loadOutfits() async {
-    final hiveService = HiveService();
-    final outfits = hiveService.getOutfits();
     setState(() {
-      _outfits = outfits.map((o) => {
-        'itemIds': o.itemIds,
-        'name': 'Outfit ${o.itemIds.length} items',
-      }).toList();
+      _outfits = _stylistService.getOutfitViews(
+        colorFilters: _activeColorNames,
+      );
     });
   }
 
@@ -71,35 +81,38 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
                   itemCount: colors.length,
                   itemBuilder: (context, index) {
                     final color = colors[index];
-                    final isSelected = _activeFilters.contains(color.value.toRadixString(16).toUpperCase());
+                    final colorHex = _rgbHex(color);
+                    final isSelected = _activeFilters.contains(colorHex);
                     return GestureDetector(
-                      onTap: () => _toggleColorFilter(color.value.toRadixString(16).toUpperCase()),
+                      onTap: () => _toggleColorFilter(colorHex),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: color,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected ? Colors.white.withValues(alpha: 0.8) : Colors.transparent,
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.8)
+                                : Colors.transparent,
                             width: isSelected ? 3 : 0,
                           ),
                           boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: color.withValues(alpha: 0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                            : null,
+                              ? [
+                                  BoxShadow(
+                                    color: color.withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: isSelected
-                          ? const Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: 28,
-                            )
-                          : const Icon(Icons.add),
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 28,
+                              )
+                            : const Icon(Icons.add),
                       ),
                     );
                   },
@@ -124,7 +137,7 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
                         Wrap(
                           spacing: 8,
                           children: _activeFilters.map((hex) {
-                            final color = Color(int.parse('0xFF$hex', radix: 16));
+                            final color = Color(int.parse('FF$hex', radix: 16));
                             return FilterChip(
                               label: Text(_colorName(color)),
                               selected: true,
@@ -155,9 +168,21 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
-                    : _activeFilters.isEmpty
-                        ? _buildAllOutfits()
-                        : _buildFilteredOutfits(),
+                    : _buildFilteredOutfits(),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _loading ? null : _generateColorOutfit,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(_loading
+                        ? 'Generating...'
+                        : 'Generate Matching Outfit'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC9A688),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -168,37 +193,25 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
 
   String _colorName(Color color) {
     const names = {
-      '#000000': 'Black',
-      '#FFF9F0': 'Cream',
-      '#C9A688': 'Terracotta',
-      '#8B5A2B': 'Brown',
-      '#E8D5B5': 'Beige',
-      '#FAF9F6': 'Off White',
-      '#2D2A26': 'Dark Brown',
-      '#8DB998': 'Green',
+      '000000': 'Black',
+      'FFF9F0': 'Cream',
+      'C9A688': 'Terracotta',
+      '8B5A2B': 'Brown',
+      'E8D5B5': 'Beige',
+      'FAF9F6': 'Off White',
+      '2D2A26': 'Dark Brown',
+      '8DB998': 'Green',
     };
-    return names[color.value.toRadixString(16)] ?? 'Color';
+    return names[_rgbHex(color)] ?? 'Color';
   }
 
-  Widget _buildAllOutfits() {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _outfits.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        return Card(
-          child: ListTile(
-            title: Text(_outfits[index]['name']!),
-            subtitle: Text('${_outfits[index]['itemIds'].length} items'),
-          ),
-        );
-      },
-    );
+  String _rgbHex(Color color) {
+    final rgb = color.toARGB32() & 0x00FFFFFF;
+    return rgb.toRadixString(16).padLeft(6, '0').toUpperCase();
   }
 
   Widget _buildFilteredOutfits() {
-    final filtered = _outfits.where((o) => o['itemIds'].isNotEmpty).toList();
+    final filtered = _outfits;
     return filtered.isEmpty
         ? Padding(
             padding: const EdgeInsets.all(32),
@@ -216,8 +229,8 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
             itemBuilder: (context, index) {
               return Card(
                 child: ListTile(
-                  title: Text(filtered[index]['name']!),
-                  subtitle: Text('${filtered[index]['itemIds'].length} items'),
+                  title: Text('Outfit ${index + 1}'),
+                  subtitle: Text(filtered[index].itemSummary),
                 ),
               );
             },
@@ -232,11 +245,29 @@ class _ColorPickerScreenState extends State<ColorPickerScreen> {
         _activeFilters.add(hex);
       }
     });
+    _loadOutfits();
   }
 
   void _resetFilters() {
     setState(() {
       _activeFilters = [];
     });
+    _loadOutfits();
+  }
+
+  Set<String> get _activeColorNames => _activeFilters
+      .map((hex) => _hexToColorName[hex])
+      .whereType<String>()
+      .toSet();
+
+  Future<void> _generateColorOutfit() async {
+    setState(() => _loading = true);
+    await _stylistService.generateOutfit(
+      colorFilters: _activeColorNames,
+      occasion: 'daily',
+      save: true,
+    );
+    await _loadOutfits();
+    setState(() => _loading = false);
   }
 }

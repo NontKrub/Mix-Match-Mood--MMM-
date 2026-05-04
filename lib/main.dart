@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mix_match_mood/core/hive_init.dart';
 import 'package:mix_match_mood/core/theme/app_theme.dart';
 import 'package:mix_match_mood/screens/home_screen.dart';

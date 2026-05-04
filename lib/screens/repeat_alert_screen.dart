@@ -10,7 +10,7 @@ class RepeatAlertScreen extends StatefulWidget {
 
 class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
   final HiveService _hiveService = HiveService();
-  List<Map<String, dynamic>> _wearHistory = [];
+  List<Map<String, dynamic>> _outfits = [];
   Map<String, int> _outfitCounts = {};
   bool _checking = true;
 
@@ -21,51 +21,37 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
   }
 
   Future<void> _analyzeWearHistory() async {
-    final wearHistory = _hiveService.getWearHistory();
     final outfits = _hiveService.getOutfits();
+    outfits.sort((a, b) {
+      final aTime = a.selectedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.selectedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
 
     // Count outfit frequency
-    final Map<String, int> counts = {};
-    for (final outfit in outfits) {
-      final outfitId = outfit.id;
-      counts.putIfAbsent(outfitId, () => 0);
-    }
+    final counts = _hiveService.getWearCounts();
 
-    // Get recent outfits with counts
-    final recentOutfits = outfits.where((outfit) {
-      final count = counts[outfit.id] ?? 0;
-      return count >= 2;
-    }).take(10).map((o) => {
-      'id': o.id,
-      'itemIds': o.itemIds,
-      'count': counts[o.id],
-      'name': 'Outfit with ${o.itemIds.length} items',
-    }).toList();
+    final recentOutfits = outfits
+        .take(20)
+        .map((o) => {
+              'id': o.id,
+              'itemIds': o.itemIds,
+              'count': counts[o.id] ?? 0,
+              'name': 'Outfit with ${o.itemIds.length} items',
+            })
+        .toList();
 
     setState(() {
-      _wearHistory = recentOutfits.reversed.toList();
+      _outfits = recentOutfits;
       _outfitCounts = counts;
       _checking = false;
     });
   }
 
-  Future<void> _toggleWearHistory(String outfitId, bool isWorn) async {
-    final wearHistory = _hiveService.getWearHistory();
-    if (isWorn) {
-      wearHistory.add(outfitId);
-    } else {
-      wearHistory.remove(outfitId);
-    }
-    await _hiveService.setUserPreferences(
-      _hiveService.getUserPreferences()
-        ..wearHistory = wearHistory,
-    );
-    _analyzeWearHistory();
-  }
-
   Future<void> _markOutfitAsWorn(int index) async {
-    final outfitId = _wearHistory[index]['id'];
-    await _toggleWearHistory(outfitId, true);
+    final outfitId = _outfits[index]['id'] as String;
+    await _hiveService.markOutfitAsWorn(outfitId);
+    await _analyzeWearHistory();
   }
 
   @override
@@ -86,13 +72,14 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
       body: Column(
         children: [
           Expanded(
-            flex: _wearHistory.isNotEmpty ? 2 : 1,
-            child: _wearHistory.isEmpty
+            flex: _outfits.isNotEmpty ? 2 : 1,
+            child: _outfits.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.notifications_active, size: 64, color: Colors.grey),
+                        Icon(Icons.notifications_active,
+                            size: 64, color: Colors.grey),
                         const SizedBox(height: 16),
                         Text(
                           'No repeat outfits detected yet',
@@ -108,12 +95,13 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
                   )
                 : _buildOutfitList(),
           ),
-          if (_wearHistory.isNotEmpty)
+          if (_outfits.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFE8E4DC),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Text(
                 '${_outfitCounts.values.where((c) => c >= 2).length} outfit(s) worn multiple times',
@@ -128,17 +116,25 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
   Widget _buildOutfitList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _wearHistory.length,
+      itemCount: _outfits.length,
       itemBuilder: (context, index) {
-        final outfit = _wearHistory[index];
+        final outfit = _outfits[index];
+        final count = outfit['count'] as int;
+        final isRepeat = count >= 2;
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
-            leading: Icon(Icons.emoji_symbols_outlined, color: const Color(0xFFC9A688)),
+            leading: Icon(
+              isRepeat
+                  ? Icons.warning_amber_rounded
+                  : Icons.emoji_symbols_outlined,
+              color:
+                  isRepeat ? const Color(0xFFD4A574) : const Color(0xFFC9A688),
+            ),
             title: Text(outfit['name']!),
-            subtitle: Text('Worn ${outfit['count']} times'),
+            subtitle: Text('Worn $count times'),
             trailing: IconButton(
-              icon: Icon(Icons.check_circle_outline),
+              icon: const Icon(Icons.check_circle_outline),
               onPressed: () => _markOutfitAsWorn(index),
             ),
           ),

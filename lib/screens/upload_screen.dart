@@ -16,15 +16,51 @@ class _UploadScreenState extends State<UploadScreen> {
   final ImagePicker _picker = ImagePicker();
   final HiveService _hiveService = HiveService();
   final MLKitService _mlKitService = MLKitService();
+  final TextEditingController _nameController = TextEditingController();
   XFile? _selectedImage;
   String? _cropResult;
   String? _selectedType;
   List<String> _selectedColors = [];
   List<String> _selectedStyles = [];
+  List<String> _selectedOccasions = ['daily'];
 
-  final List<String> _types = ['top', 'bottom', 'pants', 'hat', 'jewelry', 'accessory'];
-  final List<String> _defaultColors = ['white', 'black', 'gray', 'blue', 'red', 'green', 'yellow'];
-  final List<String> _defaultStyles = ['casual', 'formal', 'classic', 'modern', 'boho'];
+  final List<String> _types = [
+    'top',
+    'bottom',
+    'pants',
+    'hat',
+    'jewelry',
+    'accessory'
+  ];
+  final List<String> _defaultColors = [
+    'white',
+    'black',
+    'gray',
+    'blue',
+    'red',
+    'green',
+    'yellow'
+  ];
+  final List<String> _defaultStyles = [
+    'casual',
+    'formal',
+    'classic',
+    'modern',
+    'boho'
+  ];
+  final List<String> _defaultOccasions = [
+    'daily',
+    'work',
+    'party',
+    'travel',
+    'sport'
+  ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,14 +78,18 @@ class _UploadScreenState extends State<UploadScreen> {
             const SizedBox(height: 16),
             _buildTypeSelector(),
             const SizedBox(height: 16),
+            _buildNameInput(),
+            const SizedBox(height: 16),
             _buildColorSelector(),
             const SizedBox(height: 16),
             _buildStyleSelector(),
+            const SizedBox(height: 16),
+            _buildOccasionSelector(),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _selectedImage != null ? _pickImage : null,
+              onPressed: _pickImage,
               icon: const Icon(Icons.add_a_photo),
-              label: Text('Take Photo'),
+              label: const Text('Take Photo'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFC9A688),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -57,7 +97,7 @@ class _UploadScreenState extends State<UploadScreen> {
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
-              onPressed: _selectedImage != null ? () => _showGalleryPicker() : null,
+              onPressed: _showGalleryPicker,
               icon: const Icon(Icons.photo_library),
               label: const Text('Choose from Gallery'),
               style: ElevatedButton.styleFrom(
@@ -80,10 +120,11 @@ class _UploadScreenState extends State<UploadScreen> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: _selectedImage == null
-            ? const Text(
+            ? Text(
                 'No image selected yet.\nTap a button above to add clothes.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF2D2A26).withValues(alpha: 0.6)),
+                style:
+                    TextStyle(color: Color(0xFF2D2A26).withValues(alpha: 0.6)),
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,10 +137,12 @@ class _UploadScreenState extends State<UploadScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text('Preview', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  Text('Preview',
+                      style: const TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   if (_selectedType != null)
-                    Text('Type: $_selectedType', style: const TextStyle(fontSize: 12)),
+                    Text('Type: $_selectedType',
+                        style: const TextStyle(fontSize: 12)),
                 ],
               ),
       ),
@@ -127,8 +170,10 @@ class _UploadScreenState extends State<UploadScreen> {
                 }
               },
               backgroundColor: const Color(0xFFE8E4DC),
-              selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
-              labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+              selectedColor: const Color(0xFFC9A688).withValues(alpha: 0.2),
+              labelStyle: TextStyle(
+                  color:
+                      isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
             );
           }).toList(),
         ),
@@ -151,19 +196,34 @@ class _UploadScreenState extends State<UploadScreen> {
                 label: Text(color.toUpperCase()),
                 selected: isSelected,
                 onSelected: (selected) {
-                  if (selected) {
-                    setState((s) => s!._selectedColors.add(color));
-                  } else {
-                    setState((s) => s!._selectedColors.remove(color));
-                  }
+                  setState(() {
+                    if (selected) {
+                      _selectedColors.add(color);
+                    } else {
+                      _selectedColors.remove(color);
+                    }
+                  });
                 },
                 backgroundColor: const Color(0xFFE8E4DC),
-                selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
-                labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+                selectedColor: const Color(0xFFC9A688).withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFFC9A688)
+                        : Color(0xFF2D2A26)),
               );
             }).toList(),
           ),
       ],
+    );
+  }
+
+  Widget _buildNameInput() {
+    return TextField(
+      controller: _nameController,
+      decoration: const InputDecoration(
+        labelText: 'Item Name (optional)',
+        hintText: 'e.g., White Linen Shirt',
+      ),
     );
   }
 
@@ -182,18 +242,59 @@ class _UploadScreenState extends State<UploadScreen> {
                 label: Text(style),
                 selected: isSelected,
                 onSelected: (selected) {
-                  if (selected) {
-                    setState((s) => s!._selectedStyles.add(style));
-                  } else {
-                    setState((s) => s!._selectedStyles.remove(style));
-                  }
+                  setState(() {
+                    if (selected) {
+                      _selectedStyles.add(style);
+                    } else {
+                      _selectedStyles.remove(style);
+                    }
+                  });
                 },
                 backgroundColor: const Color(0xFFE8E4DC),
-                selectedColor: const Color(0xFFC9A688).withOpacity(0.2),
-                labelStyle: TextStyle(color: isSelected ? const Color(0xFFC9A688) : Color(0xFF2D2A26)),
+                selectedColor: const Color(0xFFC9A688).withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFFC9A688)
+                        : Color(0xFF2D2A26)),
               );
             }).toList(),
           ),
+      ],
+    );
+  }
+
+  Widget _buildOccasionSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Occasion', style: const TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: _defaultOccasions.map((occasion) {
+            final isSelected = _selectedOccasions.contains(occasion);
+            return FilterChip(
+              label: Text(occasion),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedOccasions.add(occasion);
+                  } else {
+                    _selectedOccasions.remove(occasion);
+                  }
+                });
+              },
+              backgroundColor: const Color(0xFFE8E4DC),
+              selectedColor: const Color(0xFFC9A688).withValues(alpha: 0.2),
+              labelStyle: TextStyle(
+                color: isSelected
+                    ? const Color(0xFFC9A688)
+                    : const Color(0xFF2D2A26),
+              ),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
@@ -218,7 +319,8 @@ class _UploadScreenState extends State<UploadScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -231,7 +333,8 @@ class _UploadScreenState extends State<UploadScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -244,6 +347,13 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _saveClothes() async {
+    if (_cropResult == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add an image first')),
+      );
+      return;
+    }
+
     if (_selectedType == null || _selectedColors.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least one color')),
@@ -254,14 +364,16 @@ class _UploadScreenState extends State<UploadScreen> {
     // Perform ML Kit analysis for better accuracy
     final analysis = await _mlKitService.analyzeClothing(_cropResult!);
 
-    // Update selections with ML Kit results
-    if (analysis['type'] != null) {
+    // Use AI predictions as fallback defaults.
+    if ((_selectedType == null || _selectedType!.isEmpty) &&
+        analysis['type'] != null &&
+        analysis['type'] != 'unknown') {
       _selectedType = analysis['type'];
     }
-    if (analysis['colors'] != null) {
+    if (_selectedColors.isEmpty && analysis['colors'] != null) {
       _selectedColors.addAll(analysis['colors']);
     }
-    if (analysis['styles'] != null) {
+    if (_selectedStyles.isEmpty && analysis['styles'] != null) {
       _selectedStyles.addAll(analysis['styles']);
     }
 
@@ -269,14 +381,19 @@ class _UploadScreenState extends State<UploadScreen> {
     _selectedColors = _selectedColors.toSet().toList();
     _selectedStyles = _selectedStyles.toSet().toList();
 
+    final itemName = _nameController.text.trim().isEmpty
+        ? _typeLabel(_selectedType ?? 'top')
+        : _nameController.text.trim();
+
     final clothes = Clothes(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _selectedType ?? 'Item',
+      name: itemName,
       type: _selectedType ?? 'top',
       colors: _selectedColors,
       styles: _selectedStyles,
-      occasions: ['daily'],
+      occasions: _selectedOccasions.isEmpty ? ['daily'] : _selectedOccasions,
       imagePath: _cropResult,
+      detectionConfidence: (analysis['confidence'] as num?)?.toDouble(),
     );
 
     await _hiveService.addClothes(clothes);
@@ -284,7 +401,8 @@ class _UploadScreenState extends State<UploadScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Saved: ${clothes.name} (${clothes.type}) - AI detected ${analysis['confidence'] * 100}% confidence'),
+          content: Text(
+              'Saved: ${clothes.name} (${clothes.type}) - AI detected ${analysis['confidence'] * 100}% confidence'),
           backgroundColor: const Color(0xFF8DB998),
         ),
       );
@@ -317,7 +435,8 @@ class CropperScreen extends StatelessWidget {
       title: const Text('Edit Photo'),
       content: Stack(
         children: [
-          Image.file(File(imagePath), fit: BoxFit.contain, width: 300, height: 300),
+          Image.file(File(imagePath),
+              fit: BoxFit.contain, width: 300, height: 300),
           Positioned(
             top: 10,
             right: 10,

@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:mix_match_mood/core/models/clothes.dart';
 import 'package:mix_match_mood/core/services/hive_service.dart';
 
 class MissingPieceScreen extends StatefulWidget {
@@ -10,7 +13,7 @@ class MissingPieceScreen extends StatefulWidget {
 
 class _MissingPieceScreenState extends State<MissingPieceScreen> {
   final HiveService _hiveService = HiveService();
-  List<dynamic> _clothes = [];
+  List<Clothes> _clothes = [];
   Map<String, int> _gapAnalysis = {};
   bool _analyzing = true;
 
@@ -31,7 +34,13 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
 
   void _performGapAnalysis() {
     // Analyze what's missing for ideal wardrobe
-    final types = {'top': 0, 'bottom': 0, 'hat': 0, 'jewelry': 0, 'accessory': 0};
+    final types = {
+      'top': 0,
+      'bottom': 0,
+      'hat': 0,
+      'jewelry': 0,
+      'accessory': 0
+    };
 
     for (final cloth in _clothes) {
       if (types.containsKey(cloth.type)) {
@@ -40,15 +49,21 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
     }
 
     // Ideal wardrobe composition
-    final ideal = {'top': 10, 'bottom': 8, 'hat': 2, 'jewelry': 5, 'accessory': 5};
+    final ideal = {
+      'top': 10,
+      'bottom': 8,
+      'hat': 2,
+      'jewelry': 5,
+      'accessory': 5
+    };
 
     setState(() {
       _gapAnalysis = {
-        'top': ideal['top'] - (types['top'] ?? 0),
-        'bottom': ideal['bottom'] - (types['bottom'] ?? 0),
-        'hat': ideal['hat'] - (types['hat'] ?? 0),
-        'jewelry': ideal['jewelry'] - (types['jewelry'] ?? 0),
-        'accessory': ideal['accessory'] - (types['accessory'] ?? 0),
+        'top': max(ideal['top']! - (types['top'] ?? 0), 0),
+        'bottom': max(ideal['bottom']! - (types['bottom'] ?? 0), 0),
+        'hat': max(ideal['hat']! - (types['hat'] ?? 0), 0),
+        'jewelry': max(ideal['jewelry']! - (types['jewelry'] ?? 0), 0),
+        'accessory': max(ideal['accessory']! - (types['accessory'] ?? 0), 0),
       };
     });
   }
@@ -108,6 +123,8 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
             // Current Wardrobe Summary
             const SizedBox(height: 24),
             _buildWardrobeSummary(),
+            const SizedBox(height: 24),
+            _buildSmartMatchSuggestions(),
           ],
         ),
       ),
@@ -127,13 +144,16 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
         children: [
           _buildGapBar('top', _gapAnalysis['top'] ?? 0, colors['top']!),
           const SizedBox(width: 8),
-          _buildGapBar('bottom', _gapAnalysis['bottom'] ?? 0, colors['bottom']!),
+          _buildGapBar(
+              'bottom', _gapAnalysis['bottom'] ?? 0, colors['bottom']!),
           const SizedBox(width: 8),
           _buildGapBar('hat', _gapAnalysis['hat'] ?? 0, colors['hat']!),
           const SizedBox(width: 8),
-          _buildGapBar('jewelry', _gapAnalysis['jewelry'] ?? 0, colors['jewelry']!),
+          _buildGapBar(
+              'jewelry', _gapAnalysis['jewelry'] ?? 0, colors['jewelry']!),
           const SizedBox(width: 8),
-          _buildGapBar('accessory', _gapAnalysis['accessory'] ?? 0, colors['accessory']!),
+          _buildGapBar('accessory', _gapAnalysis['accessory'] ?? 0,
+              colors['accessory']!),
         ],
       ),
     );
@@ -148,7 +168,7 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
           width: 40,
           height: height.clamp(0, 40),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.7),
+            color: color.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -158,7 +178,8 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
     );
   }
 
-  Widget _buildRecommendationCard(String category, int count, String categoryName) {
+  Widget _buildRecommendationCard(
+      String category, int count, String categoryName) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -168,7 +189,7 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: colors[category]!.withOpacity(0.1),
+                color: colors[category]!.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
@@ -184,7 +205,8 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(categoryName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(categoryName,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(
                     'Consider adding $count more ${categoryName.toLowerCase()}s to your wardrobe',
@@ -224,7 +246,7 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
 
   Widget _buildWardrobeSummary() {
     final totalItems = _clothes.length;
-    final types = _clothes.map((c) => c['type']).toSet().length;
+    final types = _clothes.map((c) => c.type).toSet().length;
 
     return Card(
       child: Padding(
@@ -259,9 +281,66 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
   Widget _buildSummaryItem(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         Text(label, style: TextStyle(fontSize: 12, color: Colors.grey)),
       ],
+    );
+  }
+
+  Widget _buildSmartMatchSuggestions() {
+    final tops = _clothes.where((item) => item.type == 'top').length;
+    final bottoms = _clothes
+        .where((item) => item.type == 'bottom' || item.type == 'pants')
+        .length;
+    final accessories =
+        _clothes.where((item) => item.type == 'accessory').length;
+    final jewelry = _clothes.where((item) => item.type == 'jewelry').length;
+
+    final suggestions = <String>[
+      if (tops > 0 && bottoms > 0 && accessories == 0)
+        'Add 1-2 accessories (belt/watch/bag) to complete your top + bottom sets.',
+      if (tops > 0 && bottoms > 0 && jewelry == 0)
+        'Add a jewelry piece for more polished combinations.',
+      if (tops > bottoms + 2)
+        'You have many tops; adding more bottoms will increase outfit variety.',
+      if (bottoms > tops + 2)
+        'You have many bottoms; adding more tops will balance combinations.',
+      if (tops == 0 || bottoms == 0)
+        'Start with at least one top and one bottom to unlock matching suggestions.',
+    ];
+
+    if (suggestions.isEmpty) {
+      suggestions.add(
+          'Your wardrobe has the core pieces needed for flexible matching.');
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Smart Match Suggestions',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            ...suggestions.map(
+              (suggestion) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• '),
+                    Expanded(child: Text(suggestion)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -274,11 +353,11 @@ class _MissingPieceScreenState extends State<MissingPieceScreen> {
   };
 
   static const Map<String, IconData> icons = {
-    'top': Icons.ondemand,
-    'bottom': Icons.short_box,
-    'hat': Icons.casino,
-    'jewelry': Icons.local_fire_department,
-    'accessory': Icons.tag,
+    'top': Icons.checkroom,
+    'bottom': Icons.style,
+    'hat': Icons.face,
+    'jewelry': Icons.diamond_outlined,
+    'accessory': Icons.watch,
   };
 
   String _getCategoryName(String key) => key.toUpperCase();

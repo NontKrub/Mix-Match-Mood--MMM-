@@ -1,15 +1,12 @@
 import 'dart:io';
-import '../models/clothes.dart';
 
 class MLKitService {
   /// Simple image analysis service using Flutter's built-in color detection
   /// Returns detected clothing type, colors from image, and suggested styles
   Future<Map<String, dynamic>> analyzeClothing(String imagePath) async {
     try {
-      // Decode and analyze the image
       final file = File(imagePath);
       final imageBytes = file.readAsBytesSync();
-      final image = await decodeImageFromList(imageBytes);
 
       // Extract dominant colors
       final colors = _extractDominantColors(imageBytes);

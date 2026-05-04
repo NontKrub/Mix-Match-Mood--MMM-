@@ -11,10 +11,7 @@ class WeatherScreen extends StatefulWidget {
 }
 
 class _WeatherScreenState extends State<WeatherScreen> {
-  double? _latitude;
-  double? _longitude;
   Weather? _weather;
-  String? _weatherDescription;
   double? _temperature;
   bool _loading = true;
 
@@ -28,6 +25,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _showSnackBar('Location services are disabled');
+      setState(() => _loading = false);
       return;
     }
 
@@ -36,29 +34,25 @@ class _WeatherScreenState extends State<WeatherScreen> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
         _showSnackBar('Location permissions denied');
-        _loading = false;
+        setState(() => _loading = false);
         return;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
       _showSnackBar('Location permissions permanently denied');
-      _loading = false;
+      setState(() => _loading = false);
       return;
     }
 
     try {
-      final LocationData location = await Geolocator.getCurrentPosition(
+      final Position location = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      setState(() {
-        _latitude = location.latitude;
-        _longitude = location.longitude;
-        _fetchWeather(location.latitude, location.longitude);
-      });
+      await _fetchWeather(location.latitude, location.longitude);
     } catch (e) {
       _showSnackBar('Failed to get location: $e');
-      _loading = false;
+      setState(() => _loading = false);
     }
   }
 
@@ -69,27 +63,26 @@ class _WeatherScreenState extends State<WeatherScreen> {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final current = data['current'];
-        final daily = data['daily'];
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final current = data['current'] as Map<String, dynamic>;
+        final weatherCode = current['weather_code'] as int;
+        final description = _weatherCodeToDescription(weatherCode);
 
         setState(() {
-          _latitude = lat;
-          _longitude = lon;
-          _temperature = current['temperature_2m'];
+          _temperature = (current['temperature_2m'] as num).toDouble();
           _weather = Weather(
-            description: _weatherCodeToDescription(current['weather_code']),
-            code: current['weather_code'],
+            description: description,
+            code: weatherCode,
           );
           _loading = false;
         });
       } else {
         _showSnackBar('Failed to fetch weather data');
-        _loading = false;
+        setState(() => _loading = false);
       }
     } catch (e) {
       _showSnackBar('Error: $e');
-      _loading = false;
+      setState(() => _loading = false);
     }
   }
 
@@ -149,10 +142,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
         appBar: AppBar(title: const Text('Weather Reality Check')),
         body: Center(
           child: Card(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Unable to fetch weather data. Make sure location services are enabled.',
-              textAlign: TextAlign.center,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Unable to fetch weather data. Make sure location services are enabled.',
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         ),
@@ -186,7 +181,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _weatherDescription!,
+                    _weather!.description,
                     style: const TextStyle(fontSize: 20),
                   ),
                 ],
@@ -199,9 +194,9 @@ class _WeatherScreenState extends State<WeatherScreen> {
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
             ),
             const SizedBox(height: 12),
-            _buildOutfitCard('Casual Comfort', _getCasualOutfit(_weatherDescription!)),
+            _buildOutfitCard('Casual Comfort', _getCasualOutfit(_weather!.description)),
             const SizedBox(height: 12),
-            _buildOutfitCard('Work Appropriate', _getWorkOutfit(_weatherDescription!)),
+            _buildOutfitCard('Work Appropriate', _getWorkOutfit(_weather!.description)),
             const SizedBox(height: 12),
             _buildOutfitCard('Layering Option', _getLayeringOutfit()),
             const SizedBox(height: 24),
@@ -312,20 +307,22 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   IconData get _weatherIcon {
-    if (_weatherDescription?.contains('Clear') ?? false) return Icons.wb_sunny;
-    if (_weatherDescription?.contains('Rain') ?? false) return Icons.water_drop;
-    if (_weatherDescription?.contains('Snow') ?? false) return Icons.snowing;
-    if (_weatherDescription?.contains('Thunder') ?? false) return Icons.lightning;
-    if (_weatherDescription?.contains('Fog') ?? false) return Icons.straighten;
+    final description = _weather?.description ?? '';
+    if (description.contains('Clear')) return Icons.wb_sunny;
+    if (description.contains('Rain')) return Icons.water_drop;
+    if (description.contains('Snow')) return Icons.snowing;
+    if (description.contains('Thunder')) return Icons.bolt;
+    if (description.contains('Fog')) return Icons.straighten;
     return Icons.cloud;
   }
 
   Color _getWeatherIconColor() {
-    if (_weatherDescription?.contains('Clear') ?? false) return Colors.orange;
-    if (_weatherDescription?.contains('Rain') ?? false) return Colors.blue;
-    if (_weatherDescription?.contains('Snow') ?? false) return Colors.grey;
-    if (_weatherDescription?.contains('Thunder') ?? false) return Colors.purple;
-    return Colors.orange.withOpacity(0.7);
+    final description = _weather?.description ?? '';
+    if (description.contains('Clear')) return Colors.orange;
+    if (description.contains('Rain')) return Colors.blue;
+    if (description.contains('Snow')) return Colors.grey;
+    if (description.contains('Thunder')) return Colors.purple;
+    return Colors.orange.withValues(alpha: 0.7);
   }
 }
 
