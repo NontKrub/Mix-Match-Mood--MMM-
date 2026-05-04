@@ -23,6 +23,9 @@ class UserPreferences extends HiveObject {
   @HiveField(5, defaultValue: <String>[])
   List<String> archivedOutfitIds;
 
+  @HiveField(6, defaultValue: false)
+  bool onboardingCompleted;
+
   UserPreferences({
     this.preferredMoods = const [],
     this.preferredStyles = const [],
@@ -30,5 +33,6 @@ class UserPreferences extends HiveObject {
     this.ratingHistory = const [],
     this.darkMode = false,
     this.archivedOutfitIds = const [],
+    this.onboardingCompleted = false,
   });
 }

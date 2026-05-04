@@ -90,17 +90,33 @@ Last updated: 2026-05-04
   - displays repeat notification with archive quick action
   - aligns with requirement to mark repeated outfits as archived.
 
+7. **Onboarding + app navigation structure implemented**
+- Added first-run onboarding flow to collect preferred moods/styles and persist them in `UserPreferences`.
+- Added `onboardingCompleted` preference flag and service API (`isOnboardingComplete`, `completeOnboarding`).
+- Updated app startup (`main.dart`) to route:
+  - first run -> `OnboardingScreen`
+  - returning user -> `AppShellScreen`
+- Implemented bottom navigation shell with required tabs:
+  - Home, Closet, Outfit Gen, Profile
+- Added new screens:
+  - `closet_screen.dart` (wardrobe manager list with metadata and delete/add actions)
+  - `outfit_gen_screen.dart` (hub for mood/style/color/emergency generation)
+  - `profile_screen.dart` (preference management + wardrobe stats)
+
 ## Next session: exact continuation plan
 
 1. Run iOS simulator again from safe path and confirm core flows:
    - Upload & save clothes
+   - First-run onboarding and bottom nav routing
+   - Closet tab item list/add/delete behavior
    - Generate outfit by mood/style/color
    - Weather screen loads
    - Repeat Alert wear-count behavior
    - Missing Piece set analyzer + matching recommendations
    - Emergency Mode generation
 2. Re-run iOS simulator test pass from safe path and verify updated weather + stylist + repeat archive behavior interactively.
-3. Once stable, decide whether to:
+3. Real ML visual identification remains heuristic and should be replaced with production ML Kit labeling/classification.
+4. Once stable, decide whether to:
    - keep working from safe path, or
    - rename/move the main project directory to remove parentheses.
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mix_match_mood/core/hive_init.dart';
+import 'package:mix_match_mood/core/services/hive_service.dart';
 import 'package:mix_match_mood/core/theme/app_theme.dart';
-import 'package:mix_match_mood/screens/home_screen.dart';
+import 'package:mix_match_mood/screens/app_shell_screen.dart';
+import 'package:mix_match_mood/screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,11 +17,14 @@ class MixMatchMoodApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hiveService = HiveService();
     return MaterialApp(
       title: 'Mix Match Mood',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      home: hiveService.isOnboardingComplete()
+          ? const AppShellScreen()
+          : const OnboardingScreen(),
     );
   }
 }

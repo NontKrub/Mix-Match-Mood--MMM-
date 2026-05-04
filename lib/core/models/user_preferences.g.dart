@@ -24,13 +24,14 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       darkMode: fields[4] as bool,
       archivedOutfitIds:
           fields[5] == null ? [] : (fields[5] as List).cast<String>(),
+      onboardingCompleted: fields[6] == null ? false : fields[6] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserPreferences obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.preferredMoods)
       ..writeByte(1)
@@ -42,7 +43,9 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       ..writeByte(4)
       ..write(obj.darkMode)
       ..writeByte(5)
-      ..write(obj.archivedOutfitIds);
+      ..write(obj.archivedOutfitIds)
+      ..writeByte(6)
+      ..write(obj.onboardingCompleted);
   }
 
   @override

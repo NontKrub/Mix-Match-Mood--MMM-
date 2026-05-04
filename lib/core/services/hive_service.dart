@@ -190,6 +190,19 @@ class HiveService {
     await setUserPreferences(prefs);
   }
 
+  bool isOnboardingComplete() => _getPrefs()?.onboardingCompleted ?? false;
+
+  Future<void> completeOnboarding({
+    required List<String> preferredMoods,
+    required List<String> preferredStyles,
+  }) async {
+    final prefs = getUserPreferences();
+    prefs.preferredMoods = preferredMoods;
+    prefs.preferredStyles = preferredStyles;
+    prefs.onboardingCompleted = true;
+    await setUserPreferences(prefs);
+  }
+
   Future<void> setUserPreferences(UserPreferences preferences) =>
       _prefsBox.put('prefs', preferences);
 }
