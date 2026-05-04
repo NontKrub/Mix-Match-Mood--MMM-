@@ -13,6 +13,7 @@ class WeatherScreen extends StatefulWidget {
 class _WeatherScreenState extends State<WeatherScreen> {
   Weather? _weather;
   double? _temperature;
+  bool _coldOfficeMode = false;
   bool _loading = true;
 
   @override
@@ -59,7 +60,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
   Future<void> _fetchWeather(double lat, double lon) async {
     try {
       final response = await http.get(
-        Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&daily=weather_code&temperature_unit=fahrenheit'),
+        Uri.parse(
+            'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&daily=weather_code&temperature_unit=fahrenheit'),
       );
 
       if (response.statusCode == 200) {
@@ -84,6 +86,11 @@ class _WeatherScreenState extends State<WeatherScreen> {
       _showSnackBar('Error: $e');
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _refreshWeather() async {
+    setState(() => _loading = true);
+    await _checkLocationPermission();
   }
 
   String _weatherCodeToDescription(int wmoCode) {
@@ -156,7 +163,15 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAF9F6),
-      appBar: AppBar(title: const Text('Weather Reality Check')),
+      appBar: AppBar(
+        title: const Text('Weather Reality Check'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _refreshWeather,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -173,7 +188,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '${_temperature}°F',
+                    '${(_temperature ?? 0).round()}°F',
                     style: const TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
@@ -188,15 +203,32 @@ class _WeatherScreenState extends State<WeatherScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            _buildConditionSummary(),
+            const SizedBox(height: 20),
             // Outfit Recommendations
             Text(
               'Outfit Recommendations',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
             ),
+            const SizedBox(height: 8),
+            Card(
+              child: SwitchListTile(
+                value: _coldOfficeMode,
+                activeColor: const Color(0xFFC9A688),
+                title: const Text('Cold office mode'),
+                subtitle: const Text(
+                    'Adds blazer/layering suggestions for strong indoor AC'),
+                onChanged: (value) {
+                  setState(() {
+                    _coldOfficeMode = value;
+                  });
+                },
+              ),
+            ),
             const SizedBox(height: 12),
-            _buildOutfitCard('Casual Comfort', _getCasualOutfit(_weather!.description)),
+            _buildOutfitCard('Casual Comfort', _getCasualOutfit()),
             const SizedBox(height: 12),
-            _buildOutfitCard('Work Appropriate', _getWorkOutfit(_weather!.description)),
+            _buildOutfitCard('Work Appropriate', _getWorkOutfit()),
             const SizedBox(height: 12),
             _buildOutfitCard('Layering Option', _getLayeringOutfit()),
             const SizedBox(height: 24),
@@ -215,30 +247,24 @@ class _WeatherScreenState extends State<WeatherScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline, color: const Color(0xFFC9A688)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Wear breathable fabrics in warm weather and layers for cooler days.',
-                          style: TextStyle(fontSize: 14),
-                        ),
+                  ..._buildWeatherTips().map(
+                    (tip) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.tips_and_updates_outlined,
+                              color: Color(0xFFC9A688), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              tip,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.tips_and_updates_outlined, color: const Color(0xFFC9A688)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Check the forecast before planning your outfit to stay comfortable.',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -268,7 +294,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(title,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(items, style: const TextStyle(fontSize: 14)),
                 ],
@@ -280,30 +307,107 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
-  String _getCasualOutfit(String weather) {
-    if (weather.contains('Clear') || weather.contains('Sunny')) {
-      return 'Light-colored top, denim shorts, sandals';
-    } else if (weather.contains('Rain') || weather.contains('Drizzle')) {
-      return 'Water-resistant jacket, comfortable pants, sneakers';
-    } else if (weather.contains('Snow') || weather.contains('Freezing')) {
-      return 'Warm sweater, coat, winter boots, scarf';
-    } else {
-      return 'Versatile top, jeans, comfortable shoes';
-    }
+  Widget _buildConditionSummary() {
+    final tags = _buildConditionTags();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8E4DC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Context Rules Applied',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: tags
+                .map(
+                  (tag) => Chip(
+                    label: Text(tag),
+                    backgroundColor: const Color(0xFFFAF9F6),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
   }
 
-  String _getWorkOutfit(String weather) {
-    if (weather.contains('Clear') || weather.contains('Sunny')) {
-      return 'Blouse, tailored pants, closed-toe shoes';
-    } else if (weather.contains('Rain')) {
-      return 'Umbrella, trench coat, work-appropriate shoes';
-    } else {
-      return 'Professional outfit suitable for conditions';
+  List<String> _buildConditionTags() {
+    final tags = <String>[];
+    if (_isRainy) {
+      tags.add('Rain: avoid sandals/open-toe');
     }
+    if (_isHot) {
+      tags.add('Hot: avoid wool/heavy knit');
+    }
+    if (_isCold || _isSnowy) {
+      tags.add('Cold: include a warm layer');
+    }
+    if (_coldOfficeMode) {
+      tags.add('Cold office: suggest blazer');
+    }
+    if (tags.isEmpty) {
+      tags.add('No weather restrictions');
+    }
+    return tags;
+  }
+
+  String _getCasualOutfit() {
+    final pieces = <String>[
+      if (_isHot) 'Breathable top (cotton/linen)',
+      if (!_isHot) 'Versatile top',
+      if (_isHot) 'Light bottoms',
+      if (!_isHot) 'Jeans or comfortable pants',
+      if (_isRainy) 'Water-resistant jacket',
+      if (_isRainy) 'Closed-toe shoes (avoid sandals)',
+      if (_isSnowy) 'Insulated coat and boots',
+      if (_isHot) 'No wool or heavy knit layers',
+    ];
+    return pieces.join(', ');
+  }
+
+  String _getWorkOutfit() {
+    final pieces = <String>[
+      if (_isHot) 'Lightweight office shirt',
+      if (!_isHot) 'Structured shirt or blouse',
+      'Tailored bottoms',
+      if (_isRainy) 'Trench/umbrella and closed-toe shoes',
+      if (_isCold || _isSnowy || _coldOfficeMode) 'Add blazer for warmth',
+    ];
+    return pieces.join(', ');
   }
 
   String _getLayeringOutfit() {
-    return 'Light cardigan or jacket that can be added or removed as needed';
+    if (_coldOfficeMode) {
+      return 'Blazer or cardigan for cold office AC.';
+    }
+    if (_isCold || _isSnowy) {
+      return 'Thermal base + sweater + coat for outdoor comfort.';
+    }
+    if (_isHot) {
+      return 'Keep a very light layer for indoor spaces; skip heavy wool.';
+    }
+    return 'Light cardigan or jacket that can be added or removed as needed.';
+  }
+
+  List<String> _buildWeatherTips() {
+    return [
+      if (_isRainy) 'Carry a compact umbrella and choose water-safe footwear.',
+      if (_isHot)
+        'Prioritize breathable fabrics and reduce thick, heat-trapping layers.',
+      if (_isCold || _isSnowy)
+        'Use layered insulation to stay warm without overheating indoors.',
+      if (_coldOfficeMode) 'Keep a blazer nearby for cold office temperatures.',
+      'Check the forecast before heading out to avoid outfit mismatches.',
+    ];
   }
 
   IconData get _weatherIcon {
@@ -324,6 +428,21 @@ class _WeatherScreenState extends State<WeatherScreen> {
     if (description.contains('Thunder')) return Colors.purple;
     return Colors.orange.withValues(alpha: 0.7);
   }
+
+  int get _weatherCode => _weather?.code ?? -1;
+
+  bool get _isRainy =>
+      (_weatherCode >= 51 && _weatherCode <= 67) ||
+      (_weatherCode >= 80 && _weatherCode <= 82);
+
+  bool get _isSnowy =>
+      (_weatherCode >= 71 && _weatherCode <= 77) ||
+      _weatherCode == 85 ||
+      _weatherCode == 86;
+
+  bool get _isHot => (_temperature ?? 70) >= 82;
+
+  bool get _isCold => (_temperature ?? 70) <= 55;
 }
 
 class Weather {

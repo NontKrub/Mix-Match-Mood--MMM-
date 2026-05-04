@@ -54,13 +54,32 @@ class StylistService {
       return null;
     }
 
+    final outfits = _hiveService.getOutfits();
+    final prefs = _hiveService.getUserPreferences();
+    final clothesById = {for (final item in clothes) item.id: item};
+    final feedbackScores = _buildItemFeedbackScores(outfits);
+    final itemWearCounts =
+        _buildItemWearCounts(_hiveService.getWearCounts(), outfits);
+    final preferredStyles = prefs.preferredStyles
+        .map((style) => style.trim().toLowerCase())
+        .where((style) => style.isNotEmpty)
+        .toSet();
+    final preferredColors = _buildPreferredColors(outfits, clothesById);
+
     final normalizedMood = mood?.toLowerCase();
-    final normalizedStyle = (style ??
-            (normalizedMood != null ? _moodStyleBias[normalizedMood] : null))
-        ?.toLowerCase();
+    final explicitStyle = style?.trim().toLowerCase();
+    final moodBiasedStyle =
+        normalizedMood != null ? _moodStyleBias[normalizedMood] : null;
+    final normalizedStyle = (explicitStyle != null && explicitStyle.isNotEmpty)
+        ? explicitStyle
+        : (moodBiasedStyle ??
+            (preferredStyles.isNotEmpty ? preferredStyles.first : null));
     final normalizedColors = (colorFilters ?? <String>{})
         .map((color) => color.toLowerCase())
         .toSet();
+    final seededColors = normalizedColors.isNotEmpty
+        ? normalizedColors
+        : preferredColors.take(2).toSet();
 
     final selected = <Clothes>[];
 
@@ -78,20 +97,33 @@ class StylistService {
     final topPick = _pickBest(
       tops,
       style: normalizedStyle,
-      colors: normalizedColors,
+      colors: seededColors,
       occasion: occasion,
       excludedIds: selected.map((item) => item.id).toSet(),
+      preferredStyles: preferredStyles,
+      preferredColors: preferredColors,
+      feedbackScores: feedbackScores,
+      itemWearCounts: itemWearCounts,
     );
     if (topPick != null) {
       selected.add(topPick);
     }
 
+    final bottomTargetColors = {
+      ...seededColors,
+      ...selected
+          .expand((item) => item.colors.map((color) => color.toLowerCase())),
+    };
     final bottomPick = _pickBest(
       bottoms,
       style: normalizedStyle,
-      colors: normalizedColors,
+      colors: bottomTargetColors,
       occasion: occasion,
       excludedIds: selected.map((item) => item.id).toSet(),
+      preferredStyles: preferredStyles,
+      preferredColors: preferredColors,
+      feedbackScores: feedbackScores,
+      itemWearCounts: itemWearCounts,
     );
     if (bottomPick != null) {
       selected.add(bottomPick);
@@ -106,21 +138,34 @@ class StylistService {
       final fallback = _pickBest(
         fallbackPool,
         style: normalizedStyle,
-        colors: normalizedColors,
+        colors: bottomTargetColors,
         occasion: occasion,
         excludedIds: selected.map((item) => item.id).toSet(),
+        preferredStyles: preferredStyles,
+        preferredColors: preferredColors,
+        feedbackScores: feedbackScores,
+        itemWearCounts: itemWearCounts,
       );
       if (fallback != null) {
         selected.add(fallback);
       }
     }
 
+    final accessoryTargetColors = {
+      ...bottomTargetColors,
+      ...selected
+          .expand((item) => item.colors.map((color) => color.toLowerCase())),
+    };
     final accessoryPick = _pickBest(
       accessories,
       style: normalizedStyle,
-      colors: normalizedColors,
+      colors: accessoryTargetColors,
       occasion: occasion,
       excludedIds: selected.map((item) => item.id).toSet(),
+      preferredStyles: preferredStyles,
+      preferredColors: preferredColors,
+      feedbackScores: feedbackScores,
+      itemWearCounts: itemWearCounts,
     );
     if (accessoryPick != null) {
       selected.add(accessoryPick);
@@ -206,6 +251,10 @@ class StylistService {
     required Set<String> colors,
     required String occasion,
     required Set<String> excludedIds,
+    required Set<String> preferredStyles,
+    required Set<String> preferredColors,
+    required Map<String, int> feedbackScores,
+    required Map<String, int> itemWearCounts,
   }) {
     final filtered =
         candidates.where((item) => !excludedIds.contains(item.id)).toList();
@@ -219,9 +268,21 @@ class StylistService {
           item.styles.map((s) => s.toLowerCase()).contains(style)) {
         score += 3;
       }
+      if (preferredStyles.isNotEmpty &&
+          item.styles
+              .map((s) => s.toLowerCase())
+              .any((styleName) => preferredStyles.contains(styleName))) {
+        score += 2;
+      }
       if (colors.isNotEmpty &&
           item.colors.map((c) => c.toLowerCase()).any(colors.contains)) {
         score += 2;
+      } else if (colors.isEmpty &&
+          preferredColors.isNotEmpty &&
+          item.colors
+              .map((c) => c.toLowerCase())
+              .any((color) => preferredColors.contains(color))) {
+        score += 1;
       }
       if (item.occasions
               .map((o) => o.toLowerCase())
@@ -230,6 +291,8 @@ class StylistService {
           item.occasions.map((o) => o.toLowerCase()).contains('daily')) {
         score += 1;
       }
+      score += feedbackScores[item.id] ?? 0;
+      score -= min(itemWearCounts[item.id] ?? 0, 3);
       score += _random.nextInt(2);
       return (item: item, score: score);
     }).toList()
@@ -237,5 +300,71 @@ class StylistService {
 
     final topChoices = scored.take(3).toList();
     return topChoices[_random.nextInt(topChoices.length)].item;
+  }
+
+  Map<String, int> _buildItemFeedbackScores(List<Outfit> outfits) {
+    final scores = <String, int>{};
+    for (final outfit in outfits) {
+      var delta = 0;
+      if (outfit.liked == true) {
+        delta += 2;
+      } else if (outfit.liked == false) {
+        delta -= 2;
+      }
+      if (outfit.rating != null) {
+        delta += (outfit.rating! - 3);
+      }
+      if (delta == 0) {
+        continue;
+      }
+      for (final itemId in outfit.itemIds) {
+        scores[itemId] = (scores[itemId] ?? 0) + delta;
+      }
+    }
+    return scores;
+  }
+
+  Map<String, int> _buildItemWearCounts(
+    Map<String, int> outfitWearCounts,
+    List<Outfit> outfits,
+  ) {
+    final outfitsById = {for (final outfit in outfits) outfit.id: outfit};
+    final itemWearCounts = <String, int>{};
+    outfitWearCounts.forEach((outfitId, count) {
+      final outfit = outfitsById[outfitId];
+      if (outfit == null) {
+        return;
+      }
+      for (final itemId in outfit.itemIds) {
+        itemWearCounts[itemId] = (itemWearCounts[itemId] ?? 0) + count;
+      }
+    });
+    return itemWearCounts;
+  }
+
+  Set<String> _buildPreferredColors(
+    List<Outfit> outfits,
+    Map<String, Clothes> clothesById,
+  ) {
+    final colorWeights = <String, int>{};
+    for (final outfit in outfits) {
+      final positiveSignal = outfit.liked == true || (outfit.rating ?? 0) >= 4;
+      if (!positiveSignal) {
+        continue;
+      }
+      for (final itemId in outfit.itemIds) {
+        final item = clothesById[itemId];
+        if (item == null) {
+          continue;
+        }
+        for (final color in item.colors.map((c) => c.toLowerCase())) {
+          colorWeights[color] = (colorWeights[color] ?? 0) + 1;
+        }
+      }
+    }
+
+    final ranked = colorWeights.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return ranked.take(3).map((entry) => entry.key).toSet();
   }
 }

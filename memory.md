@@ -61,6 +61,22 @@ Last updated: 2026-05-04
   - If no matches exist, app provides buy suggestions (watch/bag/scarf) tailored to selected set.
 - Gap analysis now counts `pants` as `bottom` to avoid undercount.
 
+4. **Stylist learning logic improved**
+- `stylist_service.dart` now applies stronger local learning weights:
+  - preference-aware scoring from `preferredStyles`
+  - positive/negative feedback scoring from liked/disliked/rated outfits
+  - repeat reduction via wear-history penalties
+  - preferred-color seeding from positively rated outfit history
+- Outfit generation now also harmonizes target colors across top/bottom/accessory picks for better cohesion.
+
+5. **Weather reality-check logic improved**
+- `weather_screen.dart` now implements explicit Project-Initial context rules:
+  - rain -> avoid sandal/open-toe guidance
+  - hot -> avoid wool/heavy knit guidance
+  - cold -> warm layer guidance
+  - cold office mode -> blazer recommendation
+- Added condition summary chips and dynamic recommendations/tips tied to weather code + temperature.
+
 ## Next session: exact continuation plan
 
 1. Run iOS simulator again from safe path and confirm core flows:
@@ -70,10 +86,7 @@ Last updated: 2026-05-04
    - Repeat Alert wear-count behavior
    - Missing Piece set analyzer + matching recommendations
    - Emergency Mode generation
-2. Improve weather-aware logic toward `Project-Initial.md` context rules:
-   - rain -> avoid sandal-like suggestions
-   - hot -> avoid heavy layering
-   - cold/office -> suggest blazer/layer options
+2. Re-run iOS simulator test pass from safe path and verify updated weather + stylist behavior interactively.
 3. Once stable, decide whether to:
    - keep working from safe path, or
    - rename/move the main project directory to remove parentheses.
