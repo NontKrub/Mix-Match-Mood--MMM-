@@ -26,13 +26,17 @@ class ClothesAdapter extends TypeAdapter<Clothes> {
       imagePath: fields[6] as String?,
       detectionConfidence: fields[7] as double?,
       createdAt: fields[8] as DateTime?,
+      seasons: fields[9] == null
+          ? ['all-season']
+          : (fields[9] as List).cast<String>(),
+      lastWorn: fields[10] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Clothes obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +54,11 @@ class ClothesAdapter extends TypeAdapter<Clothes> {
       ..writeByte(7)
       ..write(obj.detectionConfidence)
       ..writeByte(8)
-      ..write(obj.createdAt);
+      ..write(obj.createdAt)
+      ..writeByte(9)
+      ..write(obj.seasons)
+      ..writeByte(10)
+      ..write(obj.lastWorn);
   }
 
   @override

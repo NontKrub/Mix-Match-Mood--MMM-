@@ -23,6 +23,7 @@ class _UploadScreenState extends State<UploadScreen> {
   List<String> _selectedColors = [];
   List<String> _selectedStyles = [];
   List<String> _selectedOccasions = ['daily'];
+  List<String> _selectedSeasons = ['all-season'];
 
   final List<String> _types = [
     'top',
@@ -55,6 +56,13 @@ class _UploadScreenState extends State<UploadScreen> {
     'travel',
     'sport'
   ];
+  final List<String> _defaultSeasons = [
+    'all-season',
+    'spring',
+    'summer',
+    'autumn',
+    'winter',
+  ];
 
   @override
   void dispose() {
@@ -85,6 +93,8 @@ class _UploadScreenState extends State<UploadScreen> {
             _buildStyleSelector(),
             const SizedBox(height: 16),
             _buildOccasionSelector(),
+            const SizedBox(height: 16),
+            _buildSeasonSelector(),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _pickImage,
@@ -299,6 +309,52 @@ class _UploadScreenState extends State<UploadScreen> {
     );
   }
 
+  Widget _buildSeasonSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Season', style: TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: _defaultSeasons.map((season) {
+            final isSelected = _selectedSeasons.contains(season);
+            return FilterChip(
+              label: Text(season),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (season == 'all-season' && selected) {
+                    _selectedSeasons = ['all-season'];
+                    return;
+                  }
+
+                  _selectedSeasons.remove('all-season');
+                  if (selected) {
+                    _selectedSeasons.add(season);
+                  } else {
+                    _selectedSeasons.remove(season);
+                  }
+
+                  if (_selectedSeasons.isEmpty) {
+                    _selectedSeasons = ['all-season'];
+                  }
+                });
+              },
+              backgroundColor: const Color(0xFFE8E4DC),
+              selectedColor: const Color(0xFFC9A688).withValues(alpha: 0.2),
+              labelStyle: TextStyle(
+                color: isSelected
+                    ? const Color(0xFFC9A688)
+                    : const Color(0xFF2D2A26),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSaveButton() {
     return ElevatedButton.icon(
       onPressed: _saveClothes,
@@ -354,7 +410,7 @@ class _UploadScreenState extends State<UploadScreen> {
       return;
     }
 
-    if (_selectedType == null || _selectedColors.isEmpty) {
+    if (_selectedColors.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least one color')),
       );
@@ -392,6 +448,7 @@ class _UploadScreenState extends State<UploadScreen> {
       colors: _selectedColors,
       styles: _selectedStyles,
       occasions: _selectedOccasions.isEmpty ? ['daily'] : _selectedOccasions,
+      seasons: _selectedSeasons.isEmpty ? ['all-season'] : _selectedSeasons,
       imagePath: _cropResult,
       detectionConfidence: (analysis['confidence'] as num?)?.toDouble(),
     );

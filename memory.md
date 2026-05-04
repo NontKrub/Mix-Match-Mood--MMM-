@@ -77,6 +77,19 @@ Last updated: 2026-05-04
   - cold office mode -> blazer recommendation
 - Added condition summary chips and dynamic recommendations/tips tied to weather code + temperature.
 
+6. **Wardrobe metadata + repeat-alert behavior improved**
+- Added `season` and `lastWorn` support in clothes model:
+  - `Clothes.seasons` (default `all-season`)
+  - `Clothes.lastWorn` timestamp
+- Upload flow now includes a **Season selector** and persists selected seasons.
+- `markOutfitAsWorn` now updates `lastWorn` for every item in the outfit.
+- Added `archivedOutfitIds` to user preferences and wired archive/unarchive APIs in `HiveService`.
+- Repeat Alert screen now:
+  - supports archive/unarchive actions per outfit
+  - can show/hide archived outfits
+  - displays repeat notification with archive quick action
+  - aligns with requirement to mark repeated outfits as archived.
+
 ## Next session: exact continuation plan
 
 1. Run iOS simulator again from safe path and confirm core flows:
@@ -86,7 +99,7 @@ Last updated: 2026-05-04
    - Repeat Alert wear-count behavior
    - Missing Piece set analyzer + matching recommendations
    - Emergency Mode generation
-2. Re-run iOS simulator test pass from safe path and verify updated weather + stylist behavior interactively.
+2. Re-run iOS simulator test pass from safe path and verify updated weather + stylist + repeat archive behavior interactively.
 3. Once stable, decide whether to:
    - keep working from safe path, or
    - rename/move the main project directory to remove parentheses.

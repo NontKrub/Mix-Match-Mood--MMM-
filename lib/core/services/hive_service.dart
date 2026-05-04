@@ -104,9 +104,37 @@ class HiveService {
   }
 
   Future<void> markOutfitAsWorn(String outfitId) async {
+    final now = DateTime.now();
     final prefs = getUserPreferences();
     prefs.wearHistory = [...prefs.wearHistory, outfitId];
     await setUserPreferences(prefs);
+
+    final outfit = _outfitsBox.get(outfitId);
+    if (outfit == null) {
+      return;
+    }
+
+    for (final itemId in outfit.itemIds) {
+      final item = _clothesBox.get(itemId);
+      if (item == null) {
+        continue;
+      }
+
+      final updatedItem = Clothes(
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        colors: item.colors,
+        styles: item.styles,
+        occasions: item.occasions,
+        imagePath: item.imagePath,
+        detectionConfidence: item.detectionConfidence,
+        createdAt: item.createdAt,
+        seasons: item.seasons,
+        lastWorn: now,
+      );
+      await _clothesBox.put(itemId, updatedItem);
+    }
   }
 
   Future<void> removeOutfitFromWearHistory(String outfitId) async {
@@ -140,6 +168,27 @@ class HiveService {
   List<String> getPreferredStyles() => _getPrefs()?.preferredStyles ?? [];
 
   List<String> getWearHistory() => _getPrefs()?.wearHistory ?? [];
+
+  List<String> getArchivedOutfitIds() => _getPrefs()?.archivedOutfitIds ?? [];
+
+  bool isOutfitArchived(String outfitId) =>
+      getArchivedOutfitIds().contains(outfitId);
+
+  Future<void> archiveOutfit(String outfitId) async {
+    final prefs = getUserPreferences();
+    if (prefs.archivedOutfitIds.contains(outfitId)) {
+      return;
+    }
+    prefs.archivedOutfitIds = [...prefs.archivedOutfitIds, outfitId];
+    await setUserPreferences(prefs);
+  }
+
+  Future<void> unarchiveOutfit(String outfitId) async {
+    final prefs = getUserPreferences();
+    prefs.archivedOutfitIds =
+        prefs.archivedOutfitIds.where((id) => id != outfitId).toList();
+    await setUserPreferences(prefs);
+  }
 
   Future<void> setUserPreferences(UserPreferences preferences) =>
       _prefsBox.put('prefs', preferences);

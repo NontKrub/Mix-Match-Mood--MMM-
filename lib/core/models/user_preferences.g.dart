@@ -22,13 +22,15 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       wearHistory: (fields[2] as List).cast<String>(),
       ratingHistory: (fields[3] as List).cast<Outfit>(),
       darkMode: fields[4] as bool,
+      archivedOutfitIds:
+          fields[5] == null ? [] : (fields[5] as List).cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, UserPreferences obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.preferredMoods)
       ..writeByte(1)
@@ -38,7 +40,9 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       ..writeByte(3)
       ..write(obj.ratingHistory)
       ..writeByte(4)
-      ..write(obj.darkMode);
+      ..write(obj.darkMode)
+      ..writeByte(5)
+      ..write(obj.archivedOutfitIds);
   }
 
   @override

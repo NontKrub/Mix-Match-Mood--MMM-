@@ -12,6 +12,7 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
   final HiveService _hiveService = HiveService();
   List<Map<String, dynamic>> _outfits = [];
   Map<String, int> _outfitCounts = {};
+  bool _showArchived = false;
   bool _checking = true;
 
   @override
@@ -30,15 +31,21 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
 
     // Count outfit frequency
     final counts = _hiveService.getWearCounts();
+    final archived = _hiveService.getArchivedOutfitIds().toSet();
 
-    final recentOutfits = outfits
+    final preparedOutfits = outfits
         .take(20)
         .map((o) => {
               'id': o.id,
               'itemIds': o.itemIds,
               'count': counts[o.id] ?? 0,
               'name': 'Outfit with ${o.itemIds.length} items',
+              'archived': archived.contains(o.id),
             })
+        .toList();
+
+    final recentOutfits = preparedOutfits
+        .where((outfit) => _showArchived || !(outfit['archived'] as bool))
         .toList();
 
     setState(() {
@@ -52,6 +59,35 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
     final outfitId = _outfits[index]['id'] as String;
     await _hiveService.markOutfitAsWorn(outfitId);
     await _analyzeWearHistory();
+    final updatedCount = _outfitCounts[outfitId] ?? 0;
+    if (updatedCount >= 2 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'This outfit has been repeated $updatedCount times. Save a photo or archive it.'),
+          action: SnackBarAction(
+            label: 'Archive',
+            onPressed: () => _setArchive(outfitId, archive: true),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _setArchive(String outfitId, {required bool archive}) async {
+    if (archive) {
+      await _hiveService.archiveOutfit(outfitId);
+    } else {
+      await _hiveService.unarchiveOutfit(outfitId);
+    }
+    await _analyzeWearHistory();
+  }
+
+  void _toggleArchivedVisibility() {
+    setState(() {
+      _showArchived = !_showArchived;
+    });
+    _analyzeWearHistory();
   }
 
   @override
@@ -68,6 +104,15 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
       backgroundColor: const Color(0xFFFAF9F6),
       appBar: AppBar(
         title: const Text('Repeat Alert'),
+        actions: [
+          IconButton(
+            tooltip: _showArchived ? 'Hide archived' : 'Show archived',
+            icon: Icon(
+              _showArchived ? Icons.visibility : Icons.archive_outlined,
+            ),
+            onPressed: _toggleArchivedVisibility,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -82,12 +127,16 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
                             size: 64, color: Colors.grey),
                         const SizedBox(height: 16),
                         Text(
-                          'No repeat outfits detected yet',
+                          _showArchived
+                              ? 'No outfits available yet'
+                              : 'No active repeat outfits',
                           style: TextStyle(fontSize: 18),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Mark outfits as worn to track repeats',
+                          _showArchived
+                              ? 'Generate outfits and mark them worn to track repeats'
+                              : 'Mark outfits as worn, then archive repeated ones',
                           style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
@@ -104,7 +153,7 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
                     const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Text(
-                '${_outfitCounts.values.where((c) => c >= 2).length} outfit(s) worn multiple times',
+                '${_outfitCounts.values.where((c) => c >= 2).length} outfit(s) worn multiple times • ${_hiveService.getArchivedOutfitIds().length} archived',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -119,7 +168,9 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
       itemCount: _outfits.length,
       itemBuilder: (context, index) {
         final outfit = _outfits[index];
+        final outfitId = outfit['id'] as String;
         final count = outfit['count'] as int;
+        final isArchived = outfit['archived'] as bool? ?? false;
         final isRepeat = count >= 2;
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -132,10 +183,27 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
                   isRepeat ? const Color(0xFFD4A574) : const Color(0xFFC9A688),
             ),
             title: Text(outfit['name']!),
-            subtitle: Text('Worn $count times'),
-            trailing: IconButton(
-              icon: const Icon(Icons.check_circle_outline),
-              onPressed: () => _markOutfitAsWorn(index),
+            subtitle: Text(
+              isArchived ? 'Archived • worn $count times' : 'Worn $count times',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Mark worn',
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: () => _markOutfitAsWorn(index),
+                ),
+                IconButton(
+                  tooltip: isArchived ? 'Unarchive outfit' : 'Archive outfit',
+                  icon: Icon(
+                    isArchived
+                        ? Icons.unarchive_outlined
+                        : Icons.archive_outlined,
+                  ),
+                  onPressed: () => _setArchive(outfitId, archive: !isArchived),
+                ),
+              ],
             ),
           ),
         );

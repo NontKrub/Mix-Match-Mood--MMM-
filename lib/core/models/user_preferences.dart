@@ -20,11 +20,15 @@ class UserPreferences extends HiveObject {
   @HiveField(4)
   bool darkMode;
 
+  @HiveField(5, defaultValue: <String>[])
+  List<String> archivedOutfitIds;
+
   UserPreferences({
     this.preferredMoods = const [],
     this.preferredStyles = const [],
     this.wearHistory = const [],
     this.ratingHistory = const [],
     this.darkMode = false,
+    this.archivedOutfitIds = const [],
   });
 }

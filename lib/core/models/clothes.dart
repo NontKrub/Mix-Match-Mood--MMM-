@@ -31,6 +31,12 @@ class Clothes extends HiveObject {
   @HiveField(8)
   DateTime createdAt;
 
+  @HiveField(9, defaultValue: <String>['all-season'])
+  List<String> seasons;
+
+  @HiveField(10)
+  DateTime? lastWorn;
+
   Clothes({
     required this.id,
     required this.name,
@@ -41,8 +47,11 @@ class Clothes extends HiveObject {
     this.imagePath,
     this.detectionConfidence,
     DateTime? createdAt,
+    this.seasons = const ['all-season'],
+    this.lastWorn,
   }) : createdAt = createdAt ?? DateTime.now();
 
+  @override
   int get hashCode => id.hashCode;
 
   @override
