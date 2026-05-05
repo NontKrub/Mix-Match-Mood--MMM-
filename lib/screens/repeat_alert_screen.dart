@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mix_match_mood/core/services/hive_service.dart';
 
 class RepeatAlertScreen extends StatefulWidget {
@@ -10,6 +14,7 @@ class RepeatAlertScreen extends StatefulWidget {
 
 class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
   final HiveService _hiveService = HiveService();
+  final ImagePicker _picker = ImagePicker();
   List<Map<String, dynamic>> _outfits = [];
   Map<String, int> _outfitCounts = {};
   bool _showArchived = false;
@@ -41,6 +46,7 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
               'count': counts[o.id] ?? 0,
               'name': 'Outfit with ${o.itemIds.length} items',
               'archived': archived.contains(o.id),
+              'referencePhotoPath': o.referencePhotoPath,
             })
         .toList();
 
@@ -63,15 +69,107 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
     if (updatedCount >= 2 && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'This outfit has been repeated $updatedCount times. Save a photo or archive it.'),
+          content: Text('This outfit has been repeated $updatedCount times.'),
           action: SnackBarAction(
-            label: 'Archive',
-            onPressed: () => _setArchive(outfitId, archive: true),
+            label: 'Save Photo',
+            onPressed: () => _saveRepeatPhotoForOutfit(outfitId),
           ),
         ),
       );
     }
+  }
+
+  Future<void> _saveRepeatPhoto(int index) async {
+    final outfitId = _outfits[index]['id'] as String;
+    await _saveRepeatPhotoForOutfit(outfitId);
+  }
+
+  Future<ImageSource?> _pickImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Save reference photo',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _saveRepeatPhotoForOutfit(String outfitId) async {
+    final source = await _pickImageSource();
+    if (source == null) {
+      return;
+    }
+
+    try {
+      final XFile? image = await _picker.pickImage(source: source);
+      if (image == null) {
+        return;
+      }
+
+      await _hiveService.saveOutfitReferencePhoto(outfitId, image.path);
+      await _analyzeWearHistory();
+      _showSnackBar('Outfit photo saved');
+    } on PlatformException catch (e) {
+      _showSnackBar('Image access failed: ${e.message ?? e.code}');
+    }
+  }
+
+  void _openReferencePhoto(String path) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppBar(
+              automaticallyImplyLeading: false,
+              title: const Text('Reference photo'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            Flexible(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 3,
+                child: Image.file(File(path), fit: BoxFit.contain),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _setArchive(String outfitId, {required bool archive}) async {
@@ -171,24 +269,67 @@ class _RepeatAlertScreenState extends State<RepeatAlertScreen> {
         final outfitId = outfit['id'] as String;
         final count = outfit['count'] as int;
         final isArchived = outfit['archived'] as bool? ?? false;
+        final referencePhotoPath =
+            (outfit['referencePhotoPath'] as String?) ?? '';
+        final hasReferencePhoto = referencePhotoPath.isNotEmpty;
+        final hasReferencePhotoFile =
+            hasReferencePhoto && File(referencePhotoPath).existsSync();
         final isRepeat = count >= 2;
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
-            leading: Icon(
-              isRepeat
-                  ? Icons.warning_amber_rounded
-                  : Icons.emoji_symbols_outlined,
-              color:
-                  isRepeat ? const Color(0xFFD4A574) : const Color(0xFFC9A688),
+            leading: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: hasReferencePhotoFile
+                  ? () => _openReferencePhoto(referencePhotoPath)
+                  : null,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFFE8E4DC),
+                  image: hasReferencePhotoFile
+                      ? DecorationImage(
+                          image: FileImage(File(referencePhotoPath)),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: hasReferencePhotoFile
+                    ? null
+                    : Icon(
+                        isRepeat
+                            ? Icons.warning_amber_rounded
+                            : Icons.emoji_symbols_outlined,
+                        color: isRepeat
+                            ? const Color(0xFFD4A574)
+                            : const Color(0xFFC9A688),
+                      ),
+              ),
             ),
             title: Text(outfit['name']!),
             subtitle: Text(
-              isArchived ? 'Archived • worn $count times' : 'Worn $count times',
+              [
+                if (isArchived) 'Archived',
+                'Worn $count times',
+                if (hasReferencePhotoFile) 'Photo saved',
+                if (hasReferencePhoto && !hasReferencePhotoFile)
+                  'Photo missing',
+              ].join(' • '),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  tooltip: hasReferencePhotoFile
+                      ? 'Update reference photo'
+                      : 'Save reference photo',
+                  icon: Icon(hasReferencePhotoFile
+                      ? Icons.camera_alt
+                      : Icons.camera_alt_outlined),
+                  onPressed: () => _saveRepeatPhoto(index),
+                ),
                 IconButton(
                   tooltip: 'Mark worn',
                   icon: const Icon(Icons.check_circle_outline),

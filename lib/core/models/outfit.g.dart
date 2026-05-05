@@ -24,13 +24,14 @@ class OutfitAdapter extends TypeAdapter<Outfit> {
       selectedAt: fields[4] as DateTime?,
       liked: fields[5] as bool?,
       rating: fields[6] as int?,
+      referencePhotoPath: fields[7] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Outfit obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class OutfitAdapter extends TypeAdapter<Outfit> {
       ..writeByte(5)
       ..write(obj.liked)
       ..writeByte(6)
-      ..write(obj.rating);
+      ..write(obj.rating)
+      ..writeByte(7)
+      ..write(obj.referencePhotoPath);
   }
 
   @override

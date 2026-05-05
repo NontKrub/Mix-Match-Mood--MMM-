@@ -61,6 +61,7 @@ class HiveService {
       selectedAt: outfit.selectedAt,
       liked: liked ?? outfit.liked,
       rating: rating ?? outfit.rating,
+      referencePhotoPath: outfit.referencePhotoPath,
     );
     await _outfitsBox.put(outfitId, updatedOutfit);
 
@@ -101,6 +102,26 @@ class HiveService {
 
   Future<void> setOutfitRating(String id, int rating) async {
     await recordOutfitFeedback(outfitId: id, rating: rating);
+  }
+
+  Future<void> saveOutfitReferencePhoto(
+      String outfitId, String referencePhotoPath) async {
+    final outfit = _outfitsBox.get(outfitId);
+    if (outfit == null) {
+      return;
+    }
+
+    final updatedOutfit = Outfit(
+      id: outfit.id,
+      itemIds: outfit.itemIds,
+      mood: outfit.mood,
+      occasion: outfit.occasion,
+      selectedAt: outfit.selectedAt,
+      liked: outfit.liked,
+      rating: outfit.rating,
+      referencePhotoPath: referencePhotoPath,
+    );
+    await _outfitsBox.put(outfitId, updatedOutfit);
   }
 
   Future<void> markOutfitAsWorn(String outfitId) async {

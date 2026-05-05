@@ -25,6 +25,9 @@ class Outfit extends HiveObject {
   @HiveField(6)
   int? rating;
 
+  @HiveField(7)
+  String? referencePhotoPath;
+
   Outfit({
     required this.id,
     required this.itemIds,
@@ -33,5 +36,6 @@ class Outfit extends HiveObject {
     this.selectedAt,
     this.liked,
     this.rating,
+    this.referencePhotoPath,
   });
 }

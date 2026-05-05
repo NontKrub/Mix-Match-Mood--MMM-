@@ -14,6 +14,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
   Weather? _weather;
   double? _temperature;
   bool _coldOfficeMode = false;
+  bool _officeModeManuallyChanged = false;
+  String? _officeContextHint;
   bool _loading = true;
 
   @override
@@ -50,14 +52,28 @@ class _WeatherScreenState extends State<WeatherScreen> {
       final Position location = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      await _fetchWeather(location.latitude, location.longitude);
+      final officeSuggested = _shouldAutoEnableColdOfficeMode(location);
+      final officeHint = officeSuggested
+          ? 'Auto office context detected (weekday/work hours and low movement).'
+          : null;
+      await _fetchWeather(
+        location.latitude,
+        location.longitude,
+        officeSuggested: officeSuggested,
+        officeHint: officeHint,
+      );
     } catch (e) {
       _showSnackBar('Failed to get location: $e');
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _fetchWeather(double lat, double lon) async {
+  Future<void> _fetchWeather(
+    double lat,
+    double lon, {
+    required bool officeSuggested,
+    required String? officeHint,
+  }) async {
     try {
       final response = await http.get(
         Uri.parse(
@@ -76,6 +92,10 @@ class _WeatherScreenState extends State<WeatherScreen> {
             description: description,
             code: weatherCode,
           );
+          if (!_officeModeManuallyChanged) {
+            _coldOfficeMode = officeSuggested;
+          }
+          _officeContextHint = _officeModeManuallyChanged ? null : officeHint;
           _loading = false;
         });
       } else {
@@ -220,11 +240,24 @@ class _WeatherScreenState extends State<WeatherScreen> {
                     'Adds blazer/layering suggestions for strong indoor AC'),
                 onChanged: (value) {
                   setState(() {
+                    _officeModeManuallyChanged = true;
                     _coldOfficeMode = value;
+                    _officeContextHint = null;
                   });
                 },
               ),
             ),
+            if (_officeContextHint != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _officeContextHint!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
             _buildOutfitCard('Casual Comfort', _getCasualOutfit()),
             const SizedBox(height: 12),
@@ -443,6 +476,16 @@ class _WeatherScreenState extends State<WeatherScreen> {
   bool get _isHot => (_temperature ?? 70) >= 82;
 
   bool get _isCold => (_temperature ?? 70) <= 55;
+
+  bool _shouldAutoEnableColdOfficeMode(Position location) {
+    final now = DateTime.now();
+    final isWeekday =
+        now.weekday >= DateTime.monday && now.weekday <= DateTime.friday;
+    final isWorkHour = now.hour >= 8 && now.hour <= 18;
+    final speed = location.speed.isFinite ? location.speed : 0.0;
+    final likelyStationary = speed <= 1.2;
+    return isWeekday && isWorkHour && likelyStationary;
+  }
 }
 
 class Weather {

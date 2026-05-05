@@ -103,6 +103,19 @@ Last updated: 2026-05-04
   - `outfit_gen_screen.dart` (hub for mood/style/color/emergency generation)
   - `profile_screen.dart` (preference management + wardrobe stats)
 
+8. **Repeat-photo and weather-context improvements**
+- Added repeat photo support to `Outfit`:
+  - new field `referencePhotoPath` (Hive persisted)
+  - `HiveService.saveOutfitReferencePhoto(...)` to store/update photo
+- Repeat Alert now allows saving/updating a reference photo per repeated outfit:
+  - quick action in repeat snackbar
+  - camera first, gallery fallback
+  - UI indicator when photo is saved
+- Weather logic now includes an automatic office-context heuristic:
+  - if weekday + work hours + low movement, cold-office mode is auto-suggested
+  - users can still manually override via existing switch
+  - contextual hint text is displayed when auto office context is detected.
+
 ## Next session: exact continuation plan
 
 1. Run iOS simulator again from safe path and confirm core flows:
